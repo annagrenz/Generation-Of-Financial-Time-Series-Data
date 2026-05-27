@@ -4,7 +4,7 @@ MSc thesis project comparing two generative models for synthetic daily S&P 500 r
 Two recent generative paradigms are reimplemented in Python and compared on the same data with the same metrics:
 
 1. **MMD-Signature model** with structured MA(20) noise — Chung & Sester (2025).
-2. **Wavelet-image DDPM** — Takahashi & Mizuno (2025).
+2. **Diffusion-Based model** — Takahashi & Mizuno (2025).
 
 Both are trained on daily S&P 500 log returns (1995–2018) and evaluated on the standard set of stylised facts (heavy tails, near-zero autocorrelation, volatility clustering, leverage effect, gain/loss asymmetry) plus an aggregate signature-kernel MMD² distance, in-sample (TRAIN) and out-of-sample (OOS, 2018–2023).
 
