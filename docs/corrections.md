@@ -36,7 +36,7 @@ Numbers in thesis draft v8 were produced before these corrections and must not b
   small i.i.d. image errors (SD ratio 1.0–1.3 for ε ≤ 0.1). C3 alone therefore does **not** explain the
   10× too large SD of the earlier diffusion samples. A further candidate is the optimisation budget:
   286 training images × 100 epochs / batch 32 ≈ 900 gradient steps, versus ≈ 6,300 in the paper
-  (2,000 images). To be examined in the anchor-split pilot (WP3) on the validation slice.
+  (2,000 images). To be examined on the development split (analysis plan, Section 8.1) on the validation slice.
 
 ## C4 — Inconsistent time step (MMD-Signature)
 
@@ -53,14 +53,24 @@ Numbers in thesis draft v8 were produced before these corrections and must not b
 
 ## C6 — Single run, single split, no replication
 
-* **Fix:** ten rolling-origin folds with one-year test blocks (2014–2023) as replication units for the
-  significance tests, plus the Chung & Sester split as an anchor (pilot, seed variance, replication);
-  see `docs/analysis_plan.md`.
+* **Fix:** a development split (train 1995–2011, validation 2012–2013) on which all configuration
+  decisions are made; ten evaluation folds with one-year test blocks (2014–2023); three seeds per model
+  per fold; the Chung & Sester split as a separately reported replication. See `docs/analysis_plan.md`.
 
-## C7 — Evaluation kernel equals training kernel; real-vs-real baseline overlaps
+## C7 — Evaluation kernel close to the training kernel; real-vs-real baseline overlaps
 
-* **Fix (WP5):** omnibus tests use kernels not used in training (Gaussian-RBF MMD with permutation test,
-  classifier two-sample test); real-vs-real reference built from disjoint blocks.
+* **Fix:** the signature-kernel MMD² is no longer used to compare models. Primary endpoints are four
+  per-path statistics scored with the CRPS against each real test year (analysis plan, Section 5).
+  Omnibus kernel comparisons are exploratory and only on periods with several non-overlapping real
+  windows; a yearly omnibus test is not possible with one real window per year.
+
+## C8 — First return of each test period was dropped
+
+* **Was:** returns were computed within each period, so the first return of a test period (which uses the
+  previous period's last close) was lost.
+* **Fix:** returns are computed once on the full series and assigned by end date
+  (`data.all_log_returns`, `Fold.train_returns`, `Fold.test_returns`).
+* **Test:** `tests/test_data.py::test_test_year_includes_its_first_return`.
 
 ## Housekeeping
 

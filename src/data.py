@@ -85,54 +85,66 @@ def calendar_time_vector(index: pd.DatetimeIndex) -> np.ndarray:
 # Folds
 # ---------------------------------------------------------------------------
 
+def all_log_returns(path=DATA_PATH) -> pd.DataFrame:
+    """
+    Log returns of the full series, computed once in chronological order and indexed by the
+    date of the later price, with the calendar time step dt (years) of each return.
+    A return belongs to the period that contains its end date, so the first return of a test
+    period uses the last close before it (known at that time; not leakage).
+    """
+    p = load_prices(path)
+    r = log_returns(p)
+    dt = np.diff(p.index.values).astype("timedelta64[D]").astype(np.float64) / DAYS_PER_YEAR
+    return pd.DataFrame({"r": r.values, "dt": dt}, index=r.index)
+
+
 @dataclass(frozen=True)
 class Fold:
-    """One rolling-origin fold. All dates are inclusive."""
+    """A train/test split. All dates are inclusive. For the development split the 'test'
+    period is the validation period."""
     fold_id: int
     train_start: str
     train_end: str
     test_start: str
     test_end: str
-    val_fraction: float = 0.10   # last share of the training period held out in pilot mode
+    role: str = "evaluation"     # "development" | "evaluation" | "replication"
 
-    def train_prices(self, pilot: bool = False, path=DATA_PATH) -> pd.Series:
-        """Training prices. In pilot mode the validation slice is excluded."""
-        p = load_prices(path, self.train_start, self.train_end)
-        if pilot:
-            n_val = int(round(len(p) * self.val_fraction))
-            p = p.iloc[: len(p) - n_val]
-        return p
-
-    def val_prices(self, path=DATA_PATH) -> pd.Series:
-        """Validation slice = last `val_fraction` of the training period (pilot decisions only)."""
-        p = load_prices(path, self.train_start, self.train_end)
-        n_val = int(round(len(p) * self.val_fraction))
-        return p.iloc[len(p) - n_val:]
+    def train_prices(self, path=DATA_PATH) -> pd.Series:
+        return load_prices(path, self.train_start, self.train_end)
 
     def test_prices(self, path=DATA_PATH) -> pd.Series:
         return load_prices(path, self.test_start, self.test_end)
 
+    def train_returns(self, path=DATA_PATH) -> pd.DataFrame:
+        return all_log_returns(path).loc[self.train_start:self.train_end]
 
-# Expanding-window folds with one-year test blocks (2014-2023): ten folds, so that a paired
-# sign-flip permutation test across folds can reach p = 2/2^10 ~ 0.002 (with five folds the
-# smallest attainable two-sided p-value would be 2/32 = 0.0625 > 0.05).
+    def test_returns(self, path=DATA_PATH) -> pd.DataFrame:
+        return all_log_returns(path).loc[self.test_start:self.test_end]
+
+
+# Development split: every data-dependent decision (preprocessing choices, training budget,
+# checkpoint rule, metric definitions, seed count) is made on data up to 2013-12-31 only,
+# i.e. before the first evaluation year. Train 1995-2011, validate 2012-2013.
+DEVELOPMENT = Fold(0, "1995-01-01", "2011-12-31", "2012-01-01", "2013-12-31", role="development")
+
+# Evaluation folds: expanding training window, one-year test block (2014-2023).
 FOLDS: dict[int, Fold] = {
     k: Fold(k, "1995-01-01", f"{year - 1}-12-31", f"{year}-01-01", f"{year}-12-31")
     for k, year in enumerate(range(2014, 2024), start=1)
 }
 
-# Anchor split of Chung & Sester (2025, Sec. 5.1): train to 2018-09-18, test to the end of the data.
-# Used for the pilot, the capacity check, the seed-variance estimate and the replication of the
-# original setup; it is NOT one of the ten folds entering the between-model tests.
-ANCHOR = Fold(0, "1995-01-01", "2018-09-18", "2018-09-19", "2023-12-28")
-FOLDS_AND_ANCHOR = {0: ANCHOR, **FOLDS}
+# Replication of the Chung & Sester (2025, Sec. 5.1) split: train to 2018-09-18. Reported
+# separately; never used for development decisions and not part of the between-model analysis.
+REPLICATION = Fold(99, "1995-01-01", "2018-09-18", "2018-09-19", "2023-12-28", role="replication")
+
+ALL_SPLITS: dict[int, Fold] = {0: DEVELOPMENT, **FOLDS, 99: REPLICATION}
 
 
 def get_fold(fold_id: int) -> Fold:
-    """Fold 0 is the Chung & Sester anchor split; folds 1-10 have test years 2014-2023."""
-    if fold_id not in FOLDS_AND_ANCHOR:
-        raise KeyError(f"Unknown fold {fold_id}; available: {sorted(FOLDS_AND_ANCHOR)}")
-    return FOLDS_AND_ANCHOR[fold_id]
+    """0 = development split, 1-10 = evaluation folds (test years 2014-2023), 99 = replication."""
+    if fold_id not in ALL_SPLITS:
+        raise KeyError(f"Unknown split {fold_id}; available: {sorted(ALL_SPLITS)}")
+    return ALL_SPLITS[fold_id]
 
 
 # ---------------------------------------------------------------------------

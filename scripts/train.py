@@ -1,18 +1,18 @@
 """
 Train one model on one fold with one seed, then generate synthetic returns.
 
-    python scripts/train.py --config config/mmd_sig.yaml   --fold 0 --seed 0
-    python scripts/train.py --config config/diffusion.yaml --fold 0 --seed 0 --pilot
+    python scripts/train.py --config config/mmd_sig.yaml   --fold 0 --seed 0     # development split
+    python scripts/train.py --config config/diffusion.yaml --fold 3 --seed 1     # evaluation fold 3 (test 2016)
 
-Outputs in runs/<model>[_<variant>]/fold<k>/seed<s>[_pilot]/:
+Splits: 0 = development (train 1995-2011, validation 2012-2013), 1-10 = evaluation folds with test
+years 2014-2023, 99 = replication of the Chung & Sester split. See docs/analysis_plan.md.
+
+Outputs in runs/<model>[_<variant>]/fold<k>/seed<s>/:
     generated_returns.npy   (n_generate, 250) log returns — the only input to evaluation
     history.json            training-loss history
     *.weights.h5            model weights
     preprocessing.json      fitted preprocessing state (diffusion codec / MA-noise fit)
     manifest.json           commit, config, data hash, package versions, GPU, timings
-
---pilot excludes the validation slice (last 10 % of the training period) from training;
-pilot runs are for configuration decisions only and are never reported as results.
 """
 
 from __future__ import annotations
@@ -37,7 +37,6 @@ def parse():
     ap.add_argument("--config", required=True)
     ap.add_argument("--fold", type=int, required=True)
     ap.add_argument("--seed", type=int, required=True)
-    ap.add_argument("--pilot", action="store_true")
     ap.add_argument("--out-root", default="runs")
     ap.add_argument("--deterministic", action="store_true")
     ap.add_argument("--override", nargs="*", default=[],
@@ -52,15 +51,15 @@ def apply_overrides(cfg, overrides):
     return cfg
 
 
-def run_mmd(cfg, fold, seed, pilot, out_dir):
+def run_mmd(cfg, fold, seed, out_dir):
     import tensorflow as tf
     from src.models import mmd_sig
     from src.models.mmd_noise import build_ma_noise_sampler
 
-    prices = fold.train_prices(pilot=pilot)
+    prices = fold.train_prices()
     windows = data.log_price_windows(prices, cfg["sample_len"], cfg["stride"])
-    r = data.log_returns(prices).values
-    dt = np.diff(data.calendar_time_vector(prices.index))
+    tr = fold.train_returns()
+    r, dt = tr["r"].values, tr["dt"].values
     sampler, fit = build_ma_noise_sampler(r, dt, noise_dim=cfg["noise_dim"], p=cfg["ma_order"], seed=seed)
 
     gen = mmd_sig.build_generator(cfg)
@@ -83,11 +82,11 @@ def run_mmd(cfg, fold, seed, pilot, out_dir):
     return gen_r, result, prep, info, train_s, gen_s
 
 
-def run_diffusion(cfg, fold, seed, pilot, out_dir):
+def run_diffusion(cfg, fold, seed, out_dir):
     from src.models import diffusion_wavelet as dw
 
-    prices = fold.train_prices(pilot=pilot)
-    r = data.log_returns(prices).values
+    prices = fold.train_prices()
+    r = fold.train_returns()["r"].values
     windows = data.return_windows(r, cfg["window"], cfg["stride"])
     codec = dw.WaveletImageCodec(cfg["power_p"], cfg["winsor_z"], cfg["image_scaling"]).fit(r, windows)
     images = codec.encode(windows)
@@ -112,12 +111,12 @@ def main():
     cfg = apply_overrides(yaml.safe_load(open(a.config)), a.override)
     fold = data.get_fold(a.fold)
     name = cfg["model"] + (f"_{cfg['variant']}" if cfg.get("variant") else "")
-    out_dir = Path(a.out_root) / name / f"fold{a.fold}" / (f"seed{a.seed}" + ("_pilot" if a.pilot else ""))
+    out_dir = Path(a.out_root) / name / f"fold{a.fold}" / f"seed{a.seed}"
     out_dir.mkdir(parents=True, exist_ok=True)
     set_seed(a.seed, a.deterministic)
 
     runner = {"mmd_sig": run_mmd, "diffusion": run_diffusion}[cfg["model"]]
-    gen_r, result, prep, info, train_s, gen_s = runner(cfg, fold, a.seed, a.pilot, out_dir)
+    gen_r, result, prep, info, train_s, gen_s = runner(cfg, fold, a.seed, out_dir)
 
     if not np.all(np.isfinite(gen_r)):
         print("WARNING: non-finite generated returns", file=sys.stderr)
@@ -125,7 +124,7 @@ def main():
     (out_dir / "history.json").write_text(json.dumps(result, indent=1))
     (out_dir / "preprocessing.json").write_text(json.dumps(prep, indent=1, default=float))
     write_manifest(out_dir, config=cfg, config_file=a.config, overrides=a.override, fold=vars(fold),
-                   seed=a.seed, pilot=a.pilot, deterministic=a.deterministic, info=info,
+                   seed=a.seed, deterministic=a.deterministic, info=info,
                    timing_seconds={"train": round(train_s, 1), "generate": round(gen_s, 1)},
                    generated={"shape": list(gen_r.shape), "mean": float(np.mean(gen_r)),
                               "std": float(np.std(gen_r))})

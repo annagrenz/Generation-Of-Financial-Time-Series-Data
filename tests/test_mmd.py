@@ -12,9 +12,9 @@ CFG = {"sample_len": 300, "hist_len": 50, "noise_dim": 4, "hidden_size": 64, "n_
 
 @pytest.fixture(scope="module")
 def sampler():
-    p = data.get_fold(0).train_prices()
-    r = data.log_returns(p).values
-    dt = np.diff(data.calendar_time_vector(p.index))
+    f = data.get_fold(0)
+    p, tr = f.train_prices(), f.train_returns()
+    r, dt = tr["r"].values, tr["dt"].values
     s, fit = build_ma_noise_sampler(r, dt, noise_dim=4, p=20, seed=0)
     return s, fit, p
 

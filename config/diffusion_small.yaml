@@ -1,4 +1,4 @@
-# Pre-registered reduced-capacity variant (anchor split, fold 0, only). Identical to diffusion.yaml except the UNet width.
+# Pre-registered reduced-capacity variant (development split, then evaluation folds if adopted). Identical to diffusion.yaml except the UNet width.
 model: diffusion
 variant: small
 

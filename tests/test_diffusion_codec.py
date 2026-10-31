@@ -7,8 +7,8 @@ from src.metrics.stylised import stylised_stats
 
 
 @pytest.fixture(scope="module")
-def fold4():
-    r = data.log_returns(data.get_fold(0).train_prices()).values
+def dev():
+    r = data.get_fold(0).train_returns()["r"].values
     w = data.return_windows(r, 256, 20)
     codec = dw.WaveletImageCodec(1.5, 10.0, "minmax").fit(r, w)
     return r, w, codec
@@ -43,16 +43,16 @@ def test_image_columns_are_time_aligned():
             assert nz.min() >= (j // block) * block and nz.max() < (j // block + 1) * block
 
 
-def test_rows_are_blockwise_constant(fold4):
-    _, w, codec = fold4
+def test_rows_are_blockwise_constant(dev):
+    _, w, codec = dev
     img = codec.encode(w[:5])[..., 0]
     for k, n in enumerate(dw.COEF_LENGTHS):
         blocks = img[:, k].reshape(5, n, 256 // n)
         assert np.allclose(blocks, blocks[..., :1])
 
 
-def test_full_encode_decode_roundtrip(fold4):
-    r, w, codec = fold4
+def test_full_encode_decode_roundtrip(dev):
+    r, w, codec = dev
     img = codec.encode(w)
     assert img.shape == (len(w), 16, 256, 1)
     assert img.min() >= -1 - 1e-6 and img.max() <= 1 + 1e-6
@@ -60,11 +60,11 @@ def test_full_encode_decode_roundtrip(fold4):
     assert np.max(np.abs(rec - w)) < 1e-6                       # float32 image storage
 
 
-def test_oracle_stylised_facts_survive_codec(fold4):
+def test_oracle_stylised_facts_survive_codec(dev):
     """Decoded real windows must give the same stylised facts as raw real windows.
     Non-overlapping windows avoid duplicated returns, whose copies would carry different
     float32 rounding and could switch sides of the VaR quantile."""
-    r, _, codec = fold4
+    r, _, codec = dev
     w = data.return_windows(r, 256, 256)
     a, b = stylised_stats(w[:, :250]), stylised_stats(codec.decode(codec.encode(w))[:, :250])
     for key in ["std", "skew", "excess_kurtosis", "var_1", "es_1"]:

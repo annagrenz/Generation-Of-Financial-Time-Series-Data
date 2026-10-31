@@ -32,12 +32,13 @@ tests/        pytest suite (data leakage, codec round-trips, noise structure, me
 ```bash
 pip install -r requirements.txt          # plus tensorflow (preinstalled on Kaggle)
 pytest -q                                # must pass before any experiment
-python scripts/train.py --config config/mmd_sig.yaml   --fold 0 --seed 0 --pilot
-python scripts/train.py --config config/diffusion.yaml --fold 0 --seed 0 --pilot
+python scripts/train.py --config config/mmd_sig.yaml   --fold 0 --seed 0   # development split
+python scripts/train.py --config config/diffusion.yaml --fold 0 --seed 0
 ```
 
-`--pilot` holds out the last 10 % of the training period; pilot runs only inform configuration decisions
-and are never reported as results. Final runs omit `--pilot`.
+Splits: `0` = development (train 1995–2011, validate 2012–2013; all configuration decisions are made
+here), `1`–`10` = evaluation folds with test years 2014–2023, `99` = replication of the Chung & Sester
+split.
 
 Every run writes `manifest.json` with the git commit, config, data hash, package versions, GPU and timings,
 so every number in the thesis can be traced to the code and data that produced it.
