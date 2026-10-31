@@ -1,0 +1,34 @@
+# MMD-Signature generator (Chung & Sester, 2025). Sources in comments.
+model: mmd_sig
+
+sample_len: 300          # Sec. 5.1: 50 burn-in + 250 generated
+hist_len: 50             # Sec. 5.1
+stride: 50               # Sec. 5.1
+batch_size: 38           # Sec. 5.1 (earlier thesis runs used 16 because of GPU memory; record if changed)
+
+noise_dim: 4             # Sec. 5.3
+hidden_size: 64          # Sec. 4.1
+n_lstm_layers: 1
+
+static_kernel: rq        # Sec. 5.3: rational quadratic
+kernel_sigma: 0.1        # Sec. 5.3
+kernel_alpha: 1.0
+n_levels: 10             # Sec. 5.3: signature truncation order
+lead_lag: true           # Sec. 3.5
+lags: [1]
+
+use_ma_noise: true       # Sec. 4.3
+ma_order: 20             # Sec. 5.3
+
+start_lr: 1.0e-3         # authors' run_training.py
+lr_factor: 0.5
+min_lr: 1.0e-6
+patience: 100            # epochs without improvement of smoothed loss -> halve LR
+early_stopping: 300      # = 3 x patience
+num_losses: 20           # window of the smoothed loss
+max_epochs: 10000
+log_every: 10
+
+# generation for evaluation
+n_generate: 1000
+burnin_source: train     # primary analysis: burn-in windows from the training period only

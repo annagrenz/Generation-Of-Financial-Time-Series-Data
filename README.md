@@ -1,30 +1,48 @@
-# Generation-Of-Financial-Time-Series-Data
+# Generation of Financial Time Series Data — MSc thesis code
 
-MSc thesis project comparing two generative models for synthetic daily S&P 500 returns under an identical evaluation framework.
-Two recent generative paradigms are reimplemented in Python and compared on the same data with the same metrics:
+Anna Grenz, MSc Behavioural Data Science, University of Amsterdam. Supervisor: Raoul Grasman.
 
-1. **MMD-Signature model** with structured MA(20) noise — Chung & Sester (2025).
-2. **Diffusion-Based model** — Takahashi & Mizuno (2025).
+Two generative models for daily S&P 500 log returns, trained on identical data and evaluated with
+identical, pre-specified criteria:
 
-Both are trained on daily S&P 500 log returns (1995–2018) and evaluated on the standard set of stylised facts (heavy tails, near-zero autocorrelation, volatility clustering, leverage effect, gain/loss asymmetry) plus an aggregate signature-kernel MMD² distance, in-sample (TRAIN) and out-of-sample (OOS, 2018–2023).
+| Model | Source | Code |
+|---|---|---|
+| MMD-Signature generator (sequential LSTM, structured MA(20) noise, signature-kernel MMD loss) | Chung & Sester (2025) | `src/models/mmd_sig.py`, `src/models/mmd_noise.py` |
+| Wavelet-image DDPM (Haar DWT image, UNet noise predictor) | Takahashi & Mizuno (2025) | `src/models/diffusion_wavelet.py` |
 
-## File overview
+The study design (research question, folds, metrics, statistical tests) is fixed in
+[`docs/analysis_plan.md`](docs/analysis_plan.md). Differences from the earlier code and thesis draft are
+logged in [`docs/corrections.md`](docs/corrections.md).
 
-| File | Contents |
-|---|---|
-| `modeltraining.ipynb` | Kaggle notebook orchestrating training and evaluation on a Tesla P100 GPU.|
-| `data_pipeline.py` | Loads the S&P 500 series, splits it into the train (1995–2018) and out-of-sample (2018–2023) periods, computes log returns, and produces the sliding windows consumed by each model. |
-| `mmd_model.py` | The MMD-Signature generator: LSTM architecture, truncated signature kernel, unbiased MMD² loss, training loop with early stopping. |
-| `mmd_noise.py` | Structured-noise components for the MMD-Signature model: Lambert-W Gaussianisation of the real returns and the fitted MA(20) noise sampler. |
-| `gaussianize.py` | Goerg's (2015) Lambert-W transform code, imported by `mmd_noise.py`. |
-| `diffusion_model.py` | The wavelet-image DDPM: Haar wavelet imaging of return windows, the UNet noise predictor, the DDPM training loop, and the inverse pipeline that reconstructs log returns from generated images. The thesis results are based on this version. |
-| `diffusion_model_attempt.py` | Two iterations of targeted modifications to the diffusion implementation (standardised power transform, per-channel image layout, EMA, longer training). Neither improved out-of-sample performance; kept here for transparency about what was attempted. |
-| `evaluate.py` | Loads the trained weights for both models, generates 100 synthetic paths each, and produces the stylised-fact diagnostics, summary statistics, gain/loss-asymmetry curves, and signature-kernel MMD² comparisons for the TRAIN and OOS periods. |
-| `smoke_test.py` | Quick sanity checks of the data pipeline, the signature kernel, the wavelet round-trip, and the LSTM conditioning. Run this first before training. |
-| `spx_20231229.csv` | Daily S&P 500 closing prices, 1995-01-01 to 2023-12-29, used as the empirical target distribution. |
+## Layout
 
-## References
+```
+config/       model hyperparameters (one YAML per model / variant), each value with its source
+data/         spx_20231229.csv (from the Chung & Sester repository; SHA-256 checked on every load)
+src/data.py   loading, checksum, rolling-origin folds, window builders
+src/models/   the two generators (+ baselines, added in WP4)
+src/metrics/  stylised-fact statistics and discrepancies (+ omnibus tests, WP5)
+scripts/      train.py (train + generate one model/fold/seed); evaluation scripts follow in WP5
+notebooks/    kaggle_runner.ipynb — clones a tagged commit and runs scripts/train.py on a GPU
+tests/        pytest suite (data leakage, codec round-trips, noise structure, metrics)
+```
 
-- Chung, L. & Sester, J. (2025). *Generative modelling of financial time series with structured noise and MMD-based signature learning.* Statistics and Risk Modeling 42(3-4), 91–122.
-- Takahashi, T. & Mizuno, T. (2025). *Generation of synthetic financial time series by diffusion models.* Quantitative Finance 25(10), 1507–1516.
-- Goerg, G. M. (2015). *The Lambert way to Gaussianize heavy-tailed data with the inverse of Tukey's h transformation as a special case.* The Scientific World Journal, 909231.
+## Running
+
+```bash
+pip install -r requirements.txt          # plus tensorflow (preinstalled on Kaggle)
+pytest -q                                # must pass before any experiment
+python scripts/train.py --config config/mmd_sig.yaml   --fold 0 --seed 0 --pilot
+python scripts/train.py --config config/diffusion.yaml --fold 0 --seed 0 --pilot
+```
+
+`--pilot` holds out the last 10 % of the training period; pilot runs only inform configuration decisions
+and are never reported as results. Final runs omit `--pilot`.
+
+Every run writes `manifest.json` with the git commit, config, data hash, package versions, GPU and timings,
+so every number in the thesis can be traced to the code and data that produced it.
+
+## Reference code
+
+The original PyTorch implementation of the MMD-Signature model (including the RL experiments) is at
+<https://github.com/luchungi/Generative-Model-Signature-MMD>. It is not duplicated here.

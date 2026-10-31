@@ -1,13 +1,13 @@
-
-
+"""Lambert W x Gaussian transform (Goerg 2015), from github.com/gregversteeg/gaussianize
+as vendored in the Chung & Sester (2025) repository."""
 from typing import Text, List, Union
 
 import numpy as np
 from scipy import special
 from scipy.stats import kurtosis, norm, rankdata, boxcox
 from scipy import optimize  
-import sklearn
-from matplotlib import pylab as plt
+import sklearn.base
+
 from scipy import stats
 import warnings
 import os
@@ -86,6 +86,7 @@ class Gaussianize(sklearn.base.TransformerMixin):
 
     def qqplot(self, x: np.ndarray, prefix: Text = 'qq', output_dir: Text = "/tmp/"):
         """Show qq plots compared to normal before and after the transform."""
+        from matplotlib import pyplot as plt  # lazy: plotting only
         x = _update_x(x)
         y = self.transform(x)
         n_dim = y.shape[1]

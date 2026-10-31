@@ -1,0 +1,26 @@
+# Pre-registered reduced-capacity variant (anchor split, fold 0, only). Identical to diffusion.yaml except the UNet width.
+model: diffusion
+variant: small
+
+window: 256
+stride: 20
+power_p: 1.5
+winsor_z: 10.0
+image_scaling: minmax
+
+base_channels: 32        # 32-32-64-64-128 -> roughly 1/16 of the parameters
+channel_mults: [1, 1, 2, 2, 4]
+time_emb_dim: 128
+num_heads: 4
+
+T: 1000
+beta_start: 1.0e-4
+beta_end: 0.02
+
+epochs: 100
+batch_size: 32
+lr: 1.0e-4
+log_every: 5
+
+n_generate: 1000
+out_len: 250

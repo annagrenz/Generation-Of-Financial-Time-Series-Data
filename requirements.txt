@@ -1,0 +1,6 @@
+# TensorFlow/Keras come preinstalled on Kaggle; their versions are recorded in every manifest.json.
+arch>=6.3
+pyyaml
+scikit-learn
+statsmodels
+pytest
